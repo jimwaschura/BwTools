@@ -1,0 +1,100 @@
+# In repository we don't need to have: 
+
+# Debug and Release directories (created under Windows, not Linux)
+# and the shadow build directories
+
+_x64/
+_Win32/
+Debug/
+Release/
+.vs/
+
+# No build targets
+
+*.lib
+*.exe
+*.obj
+
+
+# Windows-specific files
+
+Thumbs.db
+desktop.ini
+*.user
+*.ncb
+*.suo
+
+
+
+*.diff
+*.patch
+*.orig
+*.rej
+
+*~
+.#*
+*#
+
+*.flt
+*.gmo
+*.info
+*.la
+*.lo
+*.o
+*.pyc
+*.tmp
+
+.deps
+.libs
+
+autom4te.cache
+config.cache
+config.h
+config.intl
+config.log
+config.status
+libtool
+POTFILES
+*-POTFILES
+
+TAGS
+TAGS.sub
+
+.gdbinit
+.gdb_history
+
+# ignore core files, but not java/net/protocol/core/
+core
+!core/
+
+lost+found
+
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+
+# try these for GWT
+
+gwt-unitCache/
+war/WEB-INF/deploy/
+war/WEB-INF/classes/
+target/
+.gwt-log
+
+# *.jar
+*.class
+*~
+*.symbolMap
+*.cache.html
+*.nocache.js
