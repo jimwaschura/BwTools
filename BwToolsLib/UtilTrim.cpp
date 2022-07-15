@@ -36,13 +36,44 @@
 
 char * trim_string(char* buf)
 {
-	return trim_string_begin(trim_string_end(buf));
+	trim_string_begin(buf);
+	trim_string_end(buf);
+	return buf;
+}
+
+char* trim_string_quotes(char* buf)
+{
+	trim_string(buf);
+	trim_string_surrounds(buf, '"', '"');
+	trim_string_surrounds(buf, '\'', '\''); 
+	trim_string(buf);
+	return buf;
+}
+
+char* trim_string_braces(char* buf)
+{
+	trim_string(buf);
+	trim_string_surrounds(buf, '[', ']'); 
+	trim_string_surrounds(buf, '{', '}');
+	trim_string(buf);
+	return buf;
+}
+
+char* trim_string_surrounds(char* buf, char before, char after)
+{
+	while ((int)strlen(buf) > 1 && buf[0] == before && buf[(int)strlen(buf) - 1] == after)
+	{
+		buf[(int)strlen(buf) - 1] = 0;
+		int slen = (int)strlen(buf);
+		strncpy_s(buf, slen + 1, buf + 1, slen - 1);
+	}
+	return buf;
 }
 
 char * trim_string_begin(char* buf)
 {
 	int retn = (int)strlen(buf);
-	while (retn > 0 && (buf[0] == '"' || buf[0] == ' '))
+	while (retn > 0 && (buf[0] == '\t' || buf[0] == ' ' || buf[0] == '\n' || buf[0]=='\r'))
 	{
 		strncpy_s(buf, retn+1, buf + 1, retn - 1);
 		retn = retn - 1;
@@ -59,9 +90,10 @@ char * trim_string_end(char* buf)
 		(buf[retn - 1] == '\n' ||
 			buf[retn - 1] == '\r' ||
 			buf[retn - 1] == '\t' ||
-			buf[retn - 1] == ' ' ||
-			buf[retn - 1] == '"'))
+			buf[retn - 1] == ' ' 
+			))
 		buf[--retn] = 0;
 	return buf;
 }
 
+/* EOF */

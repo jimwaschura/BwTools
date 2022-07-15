@@ -30,12 +30,12 @@
 
 #pragma once
 
-
 char * trim_string(char* buf);
+char* trim_string_quotes(char* buf);
+char* trim_string_braces(char* buf);
 char * trim_string_begin(char* buf);
 char * trim_string_end(char* buf);
-
-
+char* trim_string_surrounds(char* buf, char before, char after);
 
 class UtilTrim
 {

@@ -30,23 +30,21 @@
 
 #include "pch.h"
 
-#include <stdio.h>
-
 #include "BwDevice.h"
 #include "UtilTrim.h"
 
 BwDevice::BwDevice() :
-	m_ip(NULL),
-	m_port(0),
-	m_connected(false),
-	m_fast_mode(false),
-	m_socket(NULL)
+	m_IPAddress(NULL),
+	m_Port(0),
+	m_Connected(false),
+	m_FastMode(false),
+	m_Socket(NULL)
 {
 #ifdef _DEBUG
 	printf("BwDevice::BwDevice(), Entered\n");
 #endif
 
-	m_socket = new UtilSocket(AF_INET);
+	m_Socket = new UtilSocket(AF_INET);
 }
 
 BwDevice::~BwDevice()
@@ -55,49 +53,49 @@ BwDevice::~BwDevice()
 	printf("BwDevice::~BwDevice() Entered\n");
 
 #endif
-	if (get_connected())
-		disconnect();
+	if (getConnected())
+		Disconnect();
 
-	delete m_socket;
-	m_socket = NULL;
+	delete m_Socket;
+	m_Socket = NULL;
 }
 
-void BwDevice::connect(const char* ipAddress, int port)
+void BwDevice::Connect(const char* ipAddress, int port)
 {
 #ifdef _DEBUG
-	printf("BwDevice::connect(), Entered with ip=%s, port=%d\n",ipAddress,port);
+	printf("BwDevice::Connect(), Entered with ip=%s, port=%d\n",ipAddress,port);
 #endif
 
-	if (get_connected())
+	if (getConnected())
 		throw "[Already_Connected]";
 
-	get_socket()->Connect( ipAddress, port);
+	getSocket()->Connect( ipAddress, port);
 
-	m_connected = true;
-	m_ip = ipAddress;
-	m_port = port;
+	m_Connected = true;
+	m_IPAddress = ipAddress;
+	m_Port = port;
 }
 
-void BwDevice::disconnect()
+void BwDevice::Disconnect()
 {
 #ifdef _DEBUG
 	printf("BwDevice::bwdev_disconnect(), Entered\n");
 #endif
 	
-	if (get_connected())
+	if (getConnected())
 	{
-		get_socket()->Send("quit\n", 5);
-		m_connected = false;
+		getSocket()->Send("quit\n", 5);
+		m_Connected = false;
 	}
 }
 
-void BwDevice::send_command(const char* fmt, ...)
+void BwDevice::SendCommand(const char* fmt, ...)
 {
 #ifdef _DEBUG
-	printf("BwDevice::send_command(), Entered\n");
+	printf("BwDevice::SendCommand(), Entered\n");
 #endif
 
-	if (!get_connected())
+	if (!getConnected())
 		throw "[Not_Connected]";
 
 	char Buf[4096];
@@ -106,32 +104,32 @@ void BwDevice::send_command(const char* fmt, ...)
 	vsnprintf_s(Buf, 4096, fmt, argptr);
 	va_end(argptr);
 
-	if (!get_fast_mode())
-		clear_status();
+	if (!getFastMode())
+		ClearStatus();
 
 #ifdef _DEBUG
-	printf("BwDevice::send_command(), send: %s", Buf);
+	printf("BwDevice::SendCommand(), send: %s", Buf);
 #endif
 
-	get_socket()->Send( Buf, (int)strlen(Buf));
+	getSocket()->Send( Buf, (int)strlen(Buf));
 
-	if (!get_fast_mode())
+	if (!getFastMode())
 	{
-		get_status( Buf, 4096);
+		getStatus( Buf, 4096);
 
 		if (strcmp(Buf, "[none]") != 0)
 		{
 			static char errmsg[1024];
-			snprintf(errmsg, 1024, "[%s]", Buf);
+			snprintf(errmsg, 1024, "%s", Buf);
 			throw (const char*) errmsg;
 		}
 	}
 }
 
-char * BwDevice::get_status(char* buffer, int buffersize)
+char * BwDevice::getStatus(char* buffer, int buffersize)
 {
 #ifdef _DEBUG
-	printf("BwDevice::get_status(), Entered\n");
+	printf("BwDevice::getStatus(), Entered\n");
 #endif
 
 	if (buffer == NULL || buffersize <= 0)
@@ -139,81 +137,128 @@ char * BwDevice::get_status(char* buffer, int buffersize)
 
 	buffer[0] = 0;
 
-	if (!get_connected())
+	if (!getConnected())
 		throw "[Not_Connected]";
 
-	get_socket()->Send("st?\n", 4);
-	int cnt = get_socket()->Receive(buffer, buffersize - 1);
+	getSocket()->Send("st?\n", 4);
+	int cnt = getSocket()->Receive(buffer, buffersize - 1);
 	if (cnt < buffersize)
 		buffer[cnt] = 0;
 
 	trim_string(buffer);
 
 #ifdef _DEBUG
-	printf("BwDevice::get_status(), status is: \"%s\"\n", buffer);
+	printf("BwDevice::getStatus(), status is: \"%s\"\n", buffer);
 #endif
 
 	return buffer;
 }
 
-void BwDevice::clear_status()
+void BwDevice::ClearStatus()
 {
 #ifdef _DEBUG
-	printf("BwDevice::clear_status(), Entered\n");
+	printf("BwDevice::ClearStatus(), Entered\n");
 #endif
 
-	if (!get_connected())
+	if (!getConnected())
 		throw "[Not_Connected]";
 
-	get_socket()->Send("stc\n", 4);
+	getSocket()->Send("stc\n", 4);
 }
 
-char *BwDevice::query_response( char* buffer, int buffersize, const char* fmt, ...)
+char *BwDevice::QueryResponse( char* buffer, int buffersize, const char* fmt, ...)
 {
 #ifdef _DEBUG
-	printf("BwDevice::query_response, Entered\n");
+	printf("BwDevice::QueryResponse, Entered\n");
 #endif
 	if (buffer == NULL || buffersize <= 0)
 		throw "[Bad_Response_Buffer]";
 
-	if (!get_connected())
+	if (!getConnected())
 		throw "[Not_Connected]";
 
 	buffer[0] = 0;
-	char Buf[16384];
+	char Buf[4096];
 	va_list argptr;
 	va_start(argptr, fmt);
-	vsnprintf_s(Buf, 16384, fmt, argptr);
+	vsnprintf_s(Buf, 4096, fmt, argptr);
 
 	va_end(argptr);
 
-	if (!get_fast_mode())
-		clear_status();
+	if (!getFastMode())
+		ClearStatus();
 
 #ifdef _DEBUG
-	printf("BwDevice::send_command(), send: %s", Buf);
+	printf("BwDevice::SendCommand(), send: %s", Buf);
 #endif
 
-	get_socket()->Send(Buf, (int)strlen(Buf));
+	getSocket()->Send(Buf, (int)strlen(Buf));
 
-	int cnt = get_socket()->Receive(buffer, buffersize - 1);
-	if (cnt < buffersize)
-		buffer[cnt] = 0;
+	int bufcnt = getSocket()->Receive(buffer, buffersize);
 
-	trim_string(buffer);
-
-#ifdef _DEBUG
-	printf("BwDevice::query_response(), response is: \"%s\"\n", buffer);
-#endif
-
-	if (!get_fast_mode())
+	if (bufcnt > 0)
 	{
-		get_status(Buf, 4096);
+		/* trickle in remaining in case present. */
+		getSocket()->SetBlocking(false);
+		try
+		{
+#pragma warning( push )
+#pragma warning( disable : 4101 )
+
+			int cnt = 1;
+			while (bufcnt < buffersize && cnt > 0 )
+			{
+				Sleep(100);
+				try
+				{
+					cnt = getSocket()->Receive(buffer + bufcnt, buffersize - bufcnt);
+					bufcnt += cnt;
+				}
+				catch (const char* msg)
+				{
+					cnt = 0; 
+				}
+				catch (...)
+				{
+					throw;
+				}
+			}
+
+#pragma warning( pop )
+
+			getSocket()->SetBlocking(true);
+		}
+		catch (...)
+		{
+			getSocket()->SetBlocking(true);
+			throw;
+		}
+	}
+
+	//int nlcnt = 0;
+	//char* ptr = buffer;
+	//while ((ptr = strchr(ptr, '\n')) != NULL)
+	//{
+	//	ptr++; nlcnt++;
+	//}
+
+	//if (nlcnt == 1)
+	//	trim_string_quotes(buffer);
+	//else
+		trim_string_end(buffer);
+
+#ifdef _DEBUG
+	printf("BwDevice::QueryResponse(), response is: %s\n", buffer);
+#endif
+
+	if (!getFastMode())
+	{
+		getStatus(Buf, 4096);
 
 		if (strcmp(Buf, "[none]") != 0)
 		{
 			static char errmsg[1024];
-			snprintf(errmsg, 1024, "[%s]", Buf);
+			snprintf(errmsg, 1024, "%s", Buf);
 			throw (const char*)errmsg;
 		}
 	}

@@ -37,7 +37,8 @@
 //================================================================================
 
 
-#include <stdio.h>
+#include "pch.h"
+
 #include "UtilSocket.h"
 
 
@@ -58,9 +59,14 @@ static bool wsa_initialized = false;
 UtilSocket::UtilSocket(int domain) :
     m_Sock(-1),
     m_Destroying(false),
-    m_Domain(domain)
+    m_Domain(domain),
+    m_IsBlocking(true)
 {
     int protocol = 0;
+
+#ifdef _DEBUG
+    printf("UtilSocket::UtilSocket(), Entered\n");
+#endif
 
     if (wsa_initialized == false)
     {
@@ -100,8 +106,13 @@ UtilSocket::UtilSocket(int domain) :
 UtilSocket::UtilSocket(SOCKET socknum, sockaddr_in addrinet) :
     m_Sock(socknum),
     m_Destroying(false),
-    m_Domain(AF_INET)
+    m_Domain(AF_INET),
+    m_IsBlocking(true)
 {
+#ifdef _DEBUG
+    printf("UtilSocket::UtilSocket(), Entered with socknum=%u\n",(unsigned int)socknum );
+#endif
+
     if (wsa_initialized == false)
     {
         printf("Initializing WSAStartup\n");
@@ -130,6 +141,11 @@ UtilSocket::UtilSocket(SOCKET socknum, sockaddr_in addrinet) :
 
 UtilSocket::~UtilSocket()
 {
+#ifdef _DEBUG
+    printf("UtilSocket::~UtilSocket()\n");
+#endif
+
+
     m_Destroying = true;
 
     if (getSock() != -1)
@@ -153,6 +169,11 @@ UtilSocket::~UtilSocket()
 
 void UtilSocket::BindToPort(int port)
 {
+#ifdef _DEBUG
+    printf("UtilSocket::BindToPort(), port=%u\n",port);
+#endif
+
+
     if (m_Domain != AF_INET)
         throw "[Socket_Bind_Domain_Error]";
 
@@ -175,6 +196,10 @@ void UtilSocket::BindToPort(int port)
 
 void UtilSocket::Listen(int queueLen)
 {
+#ifdef _DEBUG
+    printf("UtilSocket::Listen(), queueLen=%d\n", queueLen);
+#endif
+
     if (listen(getSock(), queueLen) == SOCKET_ERROR)
         throw "[Socket_Listening_Error]";
 }
@@ -195,6 +220,10 @@ UtilSocket* UtilSocket::Accept()
     socklen_t size;
     sockaddr* ptr = NULL;
     sockaddr_in addrinet;
+
+#ifdef _DEBUG
+    printf("UtilSocket::Accept()\n");
+#endif
 
     if (m_Domain == AF_INET)
     {
@@ -217,56 +246,41 @@ UtilSocket* UtilSocket::Accept()
 * Connect to a particular ip address and port
 *
 * @details
-* Used by "client" application to connect to a specific IP Address and port.
+* Used by "client" application to Connect to a specific IP Address and port.
 *
 * @param address Server address, which is run through gethostbyname(),
-* @param port Server address port to connect to
+* @param port Server address port to Connect to
 */
+
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
 
 void UtilSocket::Connect(const char* address, int port)
 {
-    struct in_addr* addr_ptr;
-    struct hostent* hostPtr;
-    char* add;
-    try
-    {
-        hostPtr = gethostbyname(address);
-        if (hostPtr == NULL)
-            throw "[Socket_No_Hostname]";
+#ifdef _DEBUG
+    printf("UtilSocket::Connect(), address=\"%s\", port=%d\n",address,port);
+#endif
 
-        // the first address in the list of host addresses
+    struct sockaddr_in serv_addr;
+    serv_addr.sin_family = AF_INET;
 
-        addr_ptr = (struct in_addr*)*hostPtr->h_addr_list;
+    serv_addr.sin_port = htons(port);
 
-        // changed the address format to the
-        // Internet address in standard dot notation
+    int err = inet_pton(AF_INET, address, &serv_addr.sin_addr);
 
-        add = inet_ntoa(*addr_ptr);
-        if (add == NULL || *add == 0)
-            throw "[Socket_Address_Format_Error]";
-    }
-    catch (...)
-    //catch (int e)
-    {
-        throw "[Socket_Address_Error]";
-    }
-
-    struct sockaddr_in sockAddr;
-    sockAddr.sin_family = AF_INET;
-    sockAddr.sin_port = htons(port);
-    sockAddr.sin_addr.s_addr = inet_addr(add);
+    if (err <= 0)
+        throw "[Invalid_IP_Address]";
 
     //	unsigned long ul=1;
     //	int ret=ioctlsocket(getSock(), FIONBIO, (unsigned long *)&ul);//Set into non blocking mode.
 
     try
     {
-        int res = connect(getSock(), (struct sockaddr*)&sockAddr, sizeof(struct sockaddr));
+        int res = connect( getSock(), (struct sockaddr*)&serv_addr, sizeof(serv_addr) );
 
         if (res == SOCKET_ERROR)
         {
             int errnumber = WSAGetLastError();
-            print_wsa_error((char*)"connect error:", errnumber);
+            print_wsa_error((char*)"Connect error:", errnumber);
 
             fd_set fdset;
             FD_ZERO(&fdset);
@@ -308,6 +322,11 @@ void UtilSocket::Connect(const char* address, int port)
 void UtilSocket::Send(char* buffer, int len)
 
 {
+#ifdef _DEBUG
+    printf("UtilSocket::Send(), len=%d\n", len);
+#endif
+
+
     int retn = send(getSock(), buffer, len, 0);
     if (retn == SOCKET_ERROR)
         throw "[Socket_Send_Error]";
@@ -331,6 +350,10 @@ void UtilSocket::Send(char* buffer, int len)
 
 int UtilSocket::Receive(char* buffer, int bufferLen)
 {
+#ifdef _DEBUG
+    printf("UtilSocket::Receive(), bufferLen=%d\n", bufferLen);
+#endif
+
     buffer[0] = 0;
 
     int retn = recv(getSock(), buffer, bufferLen, 0);
@@ -347,6 +370,33 @@ int UtilSocket::Receive(char* buffer, int bufferLen)
     return retn;
 }
 
+
+bool UtilSocket::SetBlocking(bool newValue) /* returns if was blocking */
+{
+#ifdef USED_IN_LINUX
+    uint32_t flags = fcntl(m_Sock, F_GETFL, NULL);
+    bool previous = (flags & O_NONBLOCK) ? false : true;
+
+    if (newValue)
+        flags &= (~O_NONBLOCK);
+    else
+        flags |= O_NONBLOCK;
+
+    fcntl(m_Sock, F_SETFL, flags);
+#else
+
+    bool previous = getIsBlocking();
+    if (newValue != getIsBlocking())
+    {
+        m_IsBlocking = newValue;
+        unsigned long mode = getIsBlocking() ? 0 : 1;
+        ioctlsocket(getSock(), FIONBIO, &mode);
+    }
+#endif
+
+    return previous;
+}
+
 /**
 * Set socket option
 *
@@ -359,8 +409,11 @@ int UtilSocket::Receive(char* buffer, int bufferLen)
 */
 
 void UtilSocket::SetSocketOption(int optname, const void* optval, int optlen)
-
 {
+#ifdef _DEBUG
+    printf("UtilSocket::SetSocketOption(), opt=%d\n", optname);
+#endif
+
     if (setsockopt(getSock(), SOL_SOCKET, optname, (const char*)optval, (socklen_t)optlen) == SOCKET_ERROR)
         throw "[Socket_Set_Option_Error]";
 }

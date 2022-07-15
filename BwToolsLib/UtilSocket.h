@@ -45,6 +45,7 @@ public:
     virtual ~UtilSocket();
 
     bool getDestroying() { return m_Destroying; }
+    bool getIsBlocking() { return m_IsBlocking; }
 
     void BindToPort(int port);
     void Listen(int queueLen);
@@ -52,6 +53,7 @@ public:
     void Connect(const char* address, int port);
     void SetSocketOption(int optname, const void* optval, int optlen);
     void GetSocketOption(int optname, void* optval, int* optlen);
+    bool SetBlocking(bool newValue); /* returns if was blocking */
     int Receive(char* buffer, int bufferSize);
     void Send(char* buff, int len);
 
@@ -69,6 +71,7 @@ private:
     bool m_Destroying;
     int m_Domain;
     sockaddr_in m_SockAddrInet;
+    bool m_IsBlocking;
 
 };
 

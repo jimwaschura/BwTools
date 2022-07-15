@@ -38,34 +38,31 @@ public:
 	BwDevice();
 	virtual ~BwDevice();
 
-	bool get_fast_mode() { return m_fast_mode; }
-	void set_fast_mode(bool newValue) { m_fast_mode = newValue; }
+	bool getFastMode() { return m_FastMode; }
+	void setFastMode(bool newValue) { m_FastMode = newValue; }
 
-	bool get_connected() { return m_connected; }
+	bool getConnected() { return m_Connected; }
 
-	const char* get_ip() { return m_ip; }
-	int get_port() { return m_port; }
+	const char* getIPAddress() { return m_IPAddress; }
+	int getPort() { return m_Port; }
 
-
-
-
-	void connect( const char* ipAddress, int port);
-	void disconnect();
-	void send_command( const char* fmt, ...);
-	char * query_response( char* buffer, int buffersize, const char* fmt, ...);
-	char * get_status( char* buffer, int buffersize);
-	void clear_status();
+	void Connect( const char* ipAddress, int port);
+	void Disconnect();
+	void SendCommand( const char* fmt, ...);
+	char * QueryResponse( char* buffer, int buffersize, const char* fmt, ...);
+	char * getStatus( char* buffer, int buffersize);
+	void ClearStatus();
 
 protected:
 
-	UtilSocket* get_socket() { return m_socket; }
+	UtilSocket* getSocket() { return m_Socket; }
 
 private:
 
-	const char* m_ip;
-	int m_port;
-	bool m_connected;
-	bool m_fast_mode;
-	UtilSocket* m_socket;
+	const char* m_IPAddress;
+	int m_Port;
+	bool m_Connected;
+	bool m_FastMode;
+	UtilSocket* m_Socket;
 };
 

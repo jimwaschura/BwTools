@@ -1,9 +1,9 @@
-// Bw.cpp : This file contains the 'main' function. Program execution begins and ends there.
+// BwWait.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
 
 /*
- * bw.c
+ * BwWait.c
  *
  *  Created on: Aug 23 2016
  *      Author: Audrey Waschura
@@ -46,23 +46,26 @@
 #include "BwDevice.h"
 #include "UtilTrim.h"
 
+static const int DFLT_REPEAT = 20;
+static const int DFLT_INTERVAL = 1;
 static const int DFLT_PORT = 923;
-static const int RESPONSE_BUF_SIZE = 65536 ;
 
+static const int RESPONSE_BUF_SIZE = 65536;
 static char responseBuffer[RESPONSE_BUF_SIZE];
-static void process(BwDevice * Device, int queryFlag, char *prefix, char * buf, int buflen );
 
 int main(int argc, char* argv[])
 {
 	char* IPAddress = NULL;
 	int Port = DFLT_PORT;
-	char* InputFileName = NULL;
 	char* Prefix = NULL;
 	bool helpFlag = false;
 	bool verboseFlag = false;
 	bool NoCheck = false;
-	bool Query = false;
 	bool NoPrefix = false;
+	int Repeat = DFLT_REPEAT;
+	char* CriteriaString = NULL;
+	int Interval = DFLT_INTERVAL;
+	int IsNot = 0;
 
 	/* initialize variables for settings from getenv values */
 	/*  BW_PORT, BW_IP */
@@ -91,8 +94,8 @@ int main(int argc, char* argv[])
 	}
 
 	/* parse command line options */
-	char XmitString[2048];
-	XmitString[0] = 0;
+	char QueryString[2048];
+	QueryString[0] = 0;
 
 	while (*(++argv))
 	{
@@ -103,24 +106,34 @@ int main(int argc, char* argv[])
 		else if (!strcmp(*argv, "-p"))         Port = atoi(*(++argv));
 		else if (!strcmp(*argv, "-ip"))        IPAddress = *(++argv);
 		else if (!strcmp(*argv, "-i"))         IPAddress = *(++argv);
-		else if (!strcmp(*argv, "-file"))      InputFileName = *(++argv);
-		else if (!strcmp(*argv, "-f"))         InputFileName = *(++argv);
 		else if (!strcmp(*argv, "-nocheck"))   NoCheck = true;
 		else if (!strcmp(*argv, "-n"))		   NoCheck = true;
-		else if (!strcmp(*argv, "-query"))	   Query = true;
-		else if (!strcmp(*argv, "-q"))		   Query = true;
 		else if (!strcmp(*argv, "-prefix"))	   Prefix = *(++argv);
 		else if (!strcmp(*argv, "-x"))		   Prefix = *(++argv);
 		else if (!strcmp(*argv, "-noprefix"))  NoPrefix = true;
 		else if (!strcmp(*argv, "-nx"))        NoPrefix = true;
+		else if (!strcmp(*argv, "-repeat"))    Repeat = atoi(*(++argv));
+		else if (!strcmp(*argv, "-r"))         Repeat = atoi(*(++argv));
+		else if (!strcmp(*argv, "-sleep"))     Interval = atoi(*(++argv));
+		else if (!strcmp(*argv, "-s"))         Interval = atoi(*(++argv));
+		else if (!strcmp(*argv, "-is"))
+		{
+			IsNot = false;
+			CriteriaString = *(++argv);
+		}
+		else if (!strcmp(*argv, "-isnot"))
+		{
+			IsNot = true;
+			CriteriaString = *(++argv);
+		}
 		else
 		{
-			strcat_s(XmitString, 2048, *argv);
-			strcat_s(XmitString, 2048, " ");
+			strcat_s(QueryString, 2048, *argv);
+			strcat_s(QueryString, 2048, " ");
 		}
 	}
 
-	trim_string_quotes(XmitString);
+	trim_string_quotes(QueryString);
 
 	//if (IPAddress == NULL)
 	//	IPAddress = (char*) "localhost";
@@ -129,19 +142,21 @@ int main(int argc, char* argv[])
 
 	if (helpFlag)
 	{
-		printf("Bw, version 2.0, (c) BitWise Laboratories, Inc.\n");
-		printf("Purpose:  Sends automation query or command to BitWise Laboratories\n");
-		printf("          device and displays response.\n");
-		printf("Usage:    Bw [options] [query_or_command]\n");
+		printf("BwWait, version 2.0, (c) BitWise Laboratories, Inc.\n");
+		printf("Purpose:  Repetitiously sends query to BitWise Laboratories\n");
+		printf("          device until response matches specified criteria.\n");
+		printf("Usage:    BwWait [options] <-is/-isnot> <criteria> <query>\n");
 		printf("Options:  -h .............. display this message\n");
 		printf("          -v .............. display verbose messages\n");
 		printf("          -port <N> ....... (or -p) port number, default is %d, or use BW_PORT env variable\n",DFLT_PORT);
 		printf("          -ip <addr> ...... (or -i) ip address required, or use BW_IP env variable\n");
-		printf("          -file <file> .... (or -f) specify file to read commands from\n");
 		printf("          -nocheck......... (or -n) turn on fast mode to skip error checking\n");
-		printf("          -query........... (or -q) force command to query a response\n");
-		printf("          -prefix <str> ... (or -x) prefix for each command-line Xmit string, or use BW_PREFIX env variable\n");
+		printf("          -prefix <str> ... (or -x) prefix added to each Xmit string, or use BW_PREFIX env variable\n");
 		printf("          -noprefix ....... (or -nx) ignore any prefix that may be set\n");
+		printf("          -sleep <N> ...... (or -s) seconds to sleep between polling, default is %d seconds\n",DFLT_INTERVAL);
+		printf("          -repeat <N> ..... (or -r) poll limit, default is %d, -1 means forever\n",DFLT_REPEAT);
+		printf("          -is <string> .... string must be true to continue\n");
+		printf("          -isnot <string> . string must be false to continue\n");
 
 		return 0;
 	}
@@ -154,10 +169,11 @@ int main(int argc, char* argv[])
 		printf("Port............%d\n", Port);
 		printf("NoCheck.........%d\n", NoCheck);
 		printf("NoPrefix........%d\n", NoPrefix);
-		printf("Query...........%d\n", Query);
-		printf("InputFileName...[%s]\n", (InputFileName == NULL ? "stdin" : InputFileName) );
 		printf("Prefix..........[%s]\n",(Prefix==NULL)?"NULL": Prefix);
-		printf("XmitString......[%s]\n", XmitString);
+		printf("QueryString.....[%s]\n", QueryString);
+		printf("Repeat..........%d\n", Repeat);
+		printf("IsNot...........%d\n", IsNot);
+		printf("CriteriaString..[%s]\n", CriteriaString);
 	}
 
 	if (IPAddress == NULL)
@@ -166,101 +182,96 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
+	if ( QueryString[0]==0 )
+	{
+		fprintf(stderr, "Must specify query string on command line.  Use -h for help.\n");
+		return 1;
+	}
+
+	if (Repeat<1)
+	{
+		fprintf(stderr, "Must specify repeat value greater than zero.  Use -h for help.\n");
+		return 1;
+	}
+
+	if (Interval < 0)
+	{
+		fprintf(stderr, "Must specify repeat value greater than or equal to zero.  Use -h for help.\n");
+		return 1;
+	}
+
 	/* open socket */
 
 	BwDevice Device;
+	int retn = 1;
 
 	Device.setFastMode( NoCheck);
 
 	/* Connect to host */
 
 	Device.Connect( IPAddress, Port);
-	int retn = 1; /* error */
-	FILE* fd = NULL;
 
 	try
 	{
-		if (InputFileName != NULL && fopen_s(&fd, InputFileName, "r") != 0 )
-			throw "[Unable_To_Open_Input_File]";
+		trim_string_quotes(QueryString);
+		trim_string_quotes(CriteriaString);
 
-		/* have transmission string from command line    */
-		/* have file descriptor from -f argument         */
-		/* use stdin, and read multiple lines until EOF  */
-
-		if (fd==NULL && XmitString[0]!=0 )
+		while (Repeat != 0 && retn==1 )
 		{
+			char* prefix = NoPrefix ? (char*)"" : Prefix;
+
 			if (verboseFlag)
-				printf("Transmit: %s\n", XmitString);
+				printf("Transmit: %s%s\n", prefix,QueryString);
 
-			char* pre = NoPrefix ? NULL : Prefix;
-			process(&Device, Query, pre, XmitString, (int)strlen(XmitString));
+			Device.QueryResponse(responseBuffer, RESPONSE_BUF_SIZE, "%s%s\n", prefix, QueryString);
+
+			if (verboseFlag)
+				printf("Response: %s\n", responseBuffer);
+
+			trim_string_quotes(responseBuffer);
+
+			if( verboseFlag )
+				printf("compare response=[%s] with criteria=%s [%s]\n", responseBuffer, IsNot ? "is_not" : "is", CriteriaString);
+
+			/* compare response with response string */
+			if (!strcmp(responseBuffer, CriteriaString))
+			{
+				if (!IsNot)
+					retn = 0;
+			}
+			else if (IsNot)
+				retn = 0;
+
+			Repeat--;
+			if( Repeat>0 && retn==1 )
+				Sleep(Interval * 1000);
 		}
-		else
+
+		if (verboseFlag && (Repeat == 0 && retn==1) )
 		{
-			if (fd == NULL)
-				fd = stdin;
-
-			char buffer[4096];
-			while (fgets(buffer, 4096, fd) != NULL)
-			{
-				trim_string_quotes(buffer);
-				if (buffer[0] != 0)
-				{
-					if (verboseFlag)
-						printf("Transmit: %s\n", buffer);
-
-					process(&Device, Query, NULL, buffer, (int)strlen(buffer));
-				}
-			}
-
-			if (fd != stdin)
-			{
-				fclose(fd);
-				fd = NULL;
-			}
+			fprintf(stderr, "Repeat limit reached\n");
+			retn = 1;
 		}
 
 		Device.Disconnect();
-		retn = 0;
 	}
 	catch (const char* msg)
 	{
-		if (fd != NULL && fd != stdin)
-			fclose(fd);
-
 		fprintf(stderr,"Error: %s\n", msg);
 		Device.Disconnect();
 	}
 	catch (...)
 	{
-		if (fd != NULL && fd != stdin)
-			fclose(fd);
-
 		fprintf(stderr,"Unknown error\n");
 		Device.Disconnect();
 	}
 
+	printf("%s\n", (retn == 0) ? "Success" : "Unsuccessful");
+
 	return retn;
 }
 
-static void process(BwDevice * Device, int queryFlag, char* prefix, char* buf, int buflen)
-{
-	if (prefix == NULL)
-		prefix = (char*) "";
 
-	if (queryFlag || (buflen > 0 && buf[buflen - 1] == '?'))
-	{
-		Device->QueryResponse( responseBuffer, RESPONSE_BUF_SIZE, "%s%s\n", prefix, buf );
-		fprintf(stdout, "%s\n", responseBuffer);
-	}
-	else if (buflen > 0)
-	{
-		Device->SendCommand( "%s%s\n", prefix,buf);
-	}
-	else
-	{
-		fprintf(stderr, "No command entered.\n");
-	}
-}
+
 
 /* EOF */
